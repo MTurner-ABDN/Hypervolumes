@@ -1,0 +1,41 @@
+# Packages
+install.packages("hypervolume")
+install.packages("emdist")
+install.packages("BSDA")
+library('BSDA')
+library('hypervolume')
+library('emdist')
+
+
+#Bringing in data and splitting by taxa.
+DataByTaxa <- data.frame(read.table(file = 'DataforTaxaSplit.txt', header = TRUE, sep = '\t', stringsAsFactors = TRUE)) # Create the first data frame.
+ByOrder <- split(DataByTaxa, DataByTaxa$Order)  # Split data by taxa
+
+ArtiodactylaData <- subset(ByOrder[[1]], select = c(5, 6, 7, 8, 9, 10))  # Get empirical artio data
+
+Artiodactyla <- as.data.frame(scale(subset(ByOrder[[1]], select = c(5, 6, 7, 8, 9, 10))))  # Normalise data (Don't have to do this).
+write.table(ArtiodactylaData, file = 'Artio.txt', col.names = TRUE, row.names = FALSE, sep = "\t")  # Save the empirical artiodactyla data
+
+
+# Now create the hypervolumes - Guassian probabilisitc approach.
+myArtioHV <- hypervolume_gaussian(Artiodactyla, name = NULL,
+weight = NULL,
+samples.per.point = ceiling((10^(3 + sqrt(ncol(Artiodactyla))))/nrow(Artiodactyla)),
+kde.bandwidth = 1.0*estimate_bandwidth(Artiodactyla),
+sd.count = 3,
+quantile.requested = 0.9,
+quantile.requested.type = "probability",
+chunk.size = 1000,
+verbose = TRUE)
+
+# Get the random points (virtual species) from the hypervolume.
+VirtualSpecies <- as.data.frame(myArtioHV@RandomPoints)
+
+# Checking virtual species validity.
+# First compare the correlation matrix for the empirical data against the virutal species - use root mean square error (minimize it).
+cor_empirical <- cor(ArtiodactylaData)
+cor_virtual <- cor(VirtualSpecies)
+
+# Then check distributions of individual traits between empirical and virtual (z-tests - we want no significant differences).
+z.test(x = VirtualSpecies$Age.at.Sexual.Maturity, y = ArtiodactylaData$Age.at.Sexual.Maturity, sigma.x = sd(VirtualSpecies$Age.at.Sexual.Maturity), sigma.y = sd(ArtiodactylaData$Age.at.Sexual.Maturity), alternative = "two.sided")
+# You could also look into using kolmogorov-smirnov tests for seeing if sample data (virtual species) come from a given distribution (empirical) OR earth movers distance from the emdist package.
